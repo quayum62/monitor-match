@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Monitor Match</title>
+<style>
+  :root{
+    --bg:#0a0e14;
+    --panel:#121821;
+    --line:#1f2937;
+    --txt:#e7ecf3;
+    --dim:#7d8aa0;
+    --accent:#ff8a3d;
+    --good:#3ddc84;
+    --warn:#ffcc4d;
+    --bad:#ff5d5d;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    overscroll-behavior:none;}
+  body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
+  .wrap{max-width:520px;margin:0 auto;padding:18px 16px 40px;}
+  h1{font-size:18px;letter-spacing:.5px;margin:4px 0 2px;font-weight:600;}
+  h1 .o{color:var(--accent);}
+  .sub{color:var(--dim);font-size:12px;line-height:1.5;margin:0 0 18px;}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:14px;margin-bottom:14px;}
+  .step h2{font-size:13px;margin:0 0 8px;color:var(--accent);letter-spacing:.4px;}
+  .step p{font-size:12.5px;line-height:1.6;color:var(--dim);margin:0 0 12px;}
+  button{font-family:inherit;font-size:14px;font-weight:600;border:none;
+    border-radius:10px;padding:13px 16px;width:100%;cursor:pointer;
+    background:var(--accent);color:#13110b;transition:transform .08s,opacity .2s;}
+  button:active{transform:scale(.985);}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt);}
+  button:disabled{opacity:.4;}
+  .row{display:flex;gap:8px;}
+  .row button{width:auto;flex:1;}
+  video,canvas{display:block;}
+  .camwrap{position:relative;border-radius:12px;overflow:hidden;
+    background:#000;aspect-ratio:1/1;margin-bottom:12px;}
+  #video{width:100%;height:100%;object-fit:cover;}
+  .reticle{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;}
+  .reticle .box{width:46%;height:46%;border:2px solid rgba(255,255,255,.85);
+    border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.35);}
+  .swatchrow{display:flex;gap:10px;align-items:center;margin-bottom:10px;}
+  .sw{width:54px;height:54px;border-radius:10px;border:1px solid var(--line);flex:none;}
+  .swinfo{font-size:12px;line-height:1.5;}
+  .swinfo b{color:var(--txt);}
+  .label{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+  .pill{display:inline-block;font-size:11px;padding:3px 8px;border-radius:20px;
+    background:var(--line);color:var(--dim);margin-left:6px;}
+  .pill.set{background:rgba(61,220,132,.15);color:var(--good);}
+  .result{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;}
+  .deltabig{font-size:34px;font-weight:700;letter-spacing:-1px;}
+  .deltabig small{font-size:13px;color:var(--dim);font-weight:400;letter-spacing:0;}
+  .adj{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;
+    font-size:14px;align-items:center;margin-top:14px;}
+  .adj .ch{font-weight:700;width:18px;}
+  .adj .ch.r{color:#ff6b6b;} .adj .ch.g{color:#5ad17e;} .adj .ch.b{color:#5aa9ff;}
+  .bar{height:8px;border-radius:6px;background:var(--line);position:relative;overflow:hidden;}
+  .bar i{position:absolute;top:0;bottom:0;border-radius:6px;}
+  .adj .val{font-variant-numeric:tabular-nums;text-align:right;min-width:64px;font-size:13px;}
+  .hint{font-size:11.5px;color:var(--dim);line-height:1.6;margin-top:14px;
+    border-top:1px solid var(--line);padding-top:12px;}
+  .targetbtns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .targetbtns button{flex:1;min-width:0;padding:9px 4px;font-size:11px;}
+  .targetbtns button.active{outline:2px solid var(--accent);}
+  .err{color:var(--bad);font-size:12px;line-height:1.5;margin-top:8px;}
+  .fade{animation:fade .35s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  .hidden{display:none!important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>MONITOR<span class="o">·</span>MATCH</h1>
+  <p class="sub">Hold the camera flush against each screen showing the same test color. The app reads what each display actually emits and tells you how to adjust the older one.</p>
+
+  <!-- TEST PATTERN -->
+  <div class="step">
+    <h2>1 · Display the test color full-screen</h2>
+    <p>Put this color full-screen on the monitor you're about to read. Use the SAME color on both monitors. White exposes overall tint; gray is best for matching brightness/contrast.</p>
+    <div class="targetbtns" id="targets"></div>
+    <button class="ghost" id="fsBtn">Show fullscreen on THIS device →</button>
+    <p style="margin:10px 0 0;font-size:11px;">(If you're reading a desktop monitor, just set that monitor's screen to the chosen color — e.g. open a blank colored image. This button is only if you're matching two phones/tablets.)</p>
+  </div>
+
+  <!-- CAMERA -->
+  <div class="step">
+    <h2>2 · Read each monitor</h2>
+    <p>Press the camera flat against the screen center. The app averages a large patch, so focus and moiré don't matter. Hold steady and capture.</p>
+    <div class="camwrap">
+      <video id="video" playsinline muted></video>
+      <canvas id="canvas" class="hidden"></canvas>
+      <div class="reticle"><div class="box"></div></div>
+    </div>
+    <div class="row" style="margin-bottom:10px;">
+      <button class="ghost" id="startCam">Start camera</button>
+      <button id="capture" disabled>Capture patch</button>
+    </div>
+    <div id="camErr" class="err"></div>
+    <div class="row" style="margin:0 0 10px;">
+      <button class="ghost" id="lockBtn" disabled>🔒 Lock exposure &amp; white balance</button>
+    </div>
+    <div id="lockState" style="font-size:11px;color:var(--dim);line-height:1.6;margin-bottom:12px;"></div>
+
+    <div class="label">Last reading</div>
+    <div class="swatchrow">
+      <div class="sw" id="liveSw" style="background:#000"></div>
+      <div class="swinfo" id="liveInfo">No reading yet.</div>
+    </div>
+    <div class="row">
+      <button class="ghost" id="saveRef">Save as REFERENCE
+        <span class="pill" id="refPill">new monitor</span></button>
+      <button class="ghost" id="saveTgt">Save as TARGET
+        <span class="pill" id="tgtPill">old monitor</span></button>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="result hidden" id="resultCard">
+    <div class="label">Match result</div>
+    <div class="deltabig" id="deltaBig">–</div>
+    <div id="verdict" style="font-size:13px;color:var(--dim);margin-top:4px;"></div>
+    <div class="adj" id="adjGrid"></div>
+    <div class="hint" id="hint"></div>
+  </div>
+
+  <button class="ghost" id="resetBtn">Reset readings</button>
+</div>
+
+<script>
+const TARGETS = [
+  {name:"White 255", rgb:[255,255,255]},
+  {name:"Gray 191", rgb:[191,191,191]},
+  {name:"Gray 128", rgb:[128,128,128]},
+  {name:"Gray 64", rgb:[64,64,64]},
+  {name:"Red 255", rgb:[255,0,0]},
+  {name:"Green 255", rgb:[0,255,0]},
+  {name:"Blue 255", rgb:[0,0,255]},
+];
+let activeTarget = 1; // gray 191 default
+
+const $ = s => document.querySelector(s);
+const video = $("#video"), canvas = $("#canvas"), ctx = canvas.getContext("2d", {willReadFrequently:true});
+let stream = null, lastReading = null;
+let ref = null, tgt = null;
+
+// --- target buttons ---
+const tgtWrap = $("#targets");
+TARGETS.forEach((t,i)=>{
+  const b=document.createElement("button");
+  b.className="ghost"+(i===activeTarget?" active":"");
+  b.textContent=t.name;
+  b.onclick=()=>{activeTarget=i;[...tgtWrap.children].forEach(c=>c.classList.remove("active"));b.classList.add("active");};
+  tgtWrap.appendChild(b);
+});
+
+// --- fullscreen test color (for phone/tablet matching) ---
+$("#fsBtn").onclick = ()=>{
+  const [r,g,bl]=TARGETS[activeTarget].rgb;
+  const o=document.createElement("div");
+  o.style.cssText=`position:fixed;inset:0;z-index:9999;background:rgb(${r},${g},${bl});`;
+  o.onclick=()=>o.remove();
+  const tip=document.createElement("div");
+  tip.textContent="tap to close";
+  tip.style.cssText="position:fixed;bottom:24px;left:0;right:0;text-align:center;font:12px monospace;color:rgba(0,0,0,.4);";
+  o.appendChild(tip);
+  document.body.appendChild(o);
+};
+
+// --- camera ---
+$("#startCam").onclick = async ()=>{
+  $("#camErr").textContent="";
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:"environment"}, width:{ideal:1280}, height:{ideal:1280}},
+      audio:false
+    });
+    video.srcObject=stream;
+    await video.play();
+    $("#capture").disabled=false;
+    $("#lockBtn").disabled=false;
+    $("#startCam").textContent="Camera on";
+    // give iOS a moment to auto-expose on the screen, then lock
+    setTimeout(()=>applyLocks(), 900);
+  }catch(e){
+    $("#camErr").textContent="Camera blocked. Open in Safari/Chrome over HTTPS and allow camera access. ("+e.message+")";
+  }
+};
+
+async function applyLocks(){
+  const track = stream && stream.getVideoTracks()[0];
+  if(!track){ $("#lockState").textContent=""; return; }
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  const want = {};
+  if(caps.exposureMode && caps.exposureMode.includes("manual")) want.exposureMode="manual";
+  else if(caps.exposureMode && caps.exposureMode.includes("continuous")===false) {}
+  if(caps.whiteBalanceMode && caps.whiteBalanceMode.includes("manual")) want.whiteBalanceMode="manual";
+  if(caps.focusMode && caps.focusMode.includes("manual")) want.focusMode="manual";
+  // some platforms expose a generic lock via "single-shot"/"none"
+  try{
+    if(Object.keys(want).length) await track.applyConstraints({advanced:[want]});
+  }catch(e){/* fall through to report */}
+  reportLocks();
+}
+
+function reportLocks(){
+  const track = stream && stream.getVideoTracks()[0];
+  if(!track || !track.getSettings){ $("#lockState").textContent="Lock state unavailable on this browser."; return; }
+  const s = track.getSettings();
+  const item=(label,val,locked)=>{
+    const color = locked ? "var(--good)" : "var(--warn)";
+    const mark = locked ? "🔒" : "○";
+    return `<span style="color:${color}">${mark} ${label}: ${val||"auto"}</span>`;
+  };
+  const expLocked = s.exposureMode==="manual";
+  const wbLocked  = s.whiteBalanceMode==="manual";
+  const fLocked   = s.focusMode==="manual";
+  const anyLocked = expLocked||wbLocked||fLocked;
+  $("#lockState").innerHTML =
+    item("Exposure", s.exposureMode, expLocked)+" &nbsp; "+
+    item("White balance", s.whiteBalanceMode, wbLocked)+" &nbsp; "+
+    item("Focus", s.focusMode, fLocked)+
+    (anyLocked
+      ? "<br>Locks held — capture both monitors now without moving away."
+      : "<br>iOS Safari didn't expose manual locks. Workaround: capture both monitors back-to-back within a few seconds so auto-exposure can't drift.");
+}
+
+$("#lockBtn").onclick=()=>applyLocks();
+
+$("#capture").onclick = ()=>{
+  if(!video.videoWidth) return;
+  const w=video.videoWidth, h=video.videoHeight;
+  canvas.width=w; canvas.height=h;
+  ctx.drawImage(video,0,0,w,h);
+  // sample central 46% box (matches reticle)
+  const bw=Math.floor(w*0.46), bh=Math.floor(h*0.46);
+  const bx=Math.floor((w-bw)/2), by=Math.floor((h-bh)/2);
+  const data=ctx.getImageData(bx,by,bw,bh).data;
+  let r=0,g=0,b=0,n=0;
+  // sample every 4th pixel for speed
+  for(let i=0;i<data.length;i+=16){r+=data[i];g+=data[i+1];b+=data[i+2];n++;}
+  r=Math.round(r/n); g=Math.round(g/n); b=Math.round(b/n);
+  lastReading={r,g,b,target:TARGETS[activeTarget]};
+  $("#liveSw").style.background=`rgb(${r},${g},${b})`;
+  $("#liveInfo").innerHTML=`<b>R ${r}　G ${g}　B ${b}</b><br>target: ${lastReading.target.name}`;
+};
+
+$("#saveRef").onclick=()=>{ if(!lastReading)return; ref={...lastReading}; $("#refPill").className="pill set"; $("#refPill").textContent=`R${ref.r} G${ref.g} B${ref.b}`; compute(); };
+$("#saveTgt").onclick=()=>{ if(!lastReading)return; tgt={...lastReading}; $("#tgtPill").className="pill set"; $("#tgtPill").textContent=`R${tgt.r} G${tgt.g} B${tgt.b}`; compute(); };
+
+$("#resetBtn").onclick=()=>{
+  ref=tgt=lastReading=null;
+  $("#refPill").className="pill";$("#refPill").textContent="new monitor";
+  $("#tgtPill").className="pill";$("#tgtPill").textContent="old monitor";
+  $("#liveSw").style.background="#000";$("#liveInfo").textContent="No reading yet.";
+  $("#resultCard").classList.add("hidden");
+  if(stream) reportLocks();
+};
+
+function compute(){
+  if(!ref||!tgt) return;
+  if(ref.target.name!==tgt.target.name){
+    $("#resultCard").classList.remove("hidden");
+    $("#deltaBig").textContent="⚠";
+    $("#verdict").textContent="Both readings must use the SAME test color. Re-capture so reference and target match.";
+    $("#adjGrid").innerHTML="";$("#hint").textContent="";
+    return;
+  }
+  const card=$("#resultCard");
+  card.classList.remove("hidden");card.classList.remove("fade");void card.offsetWidth;card.classList.add("fade");
+
+  // perceptual-ish delta (weighted euclidean)
+  const dr=tgt.r-ref.r, dg=tgt.g-ref.g, db=tgt.b-ref.b;
+  const delta=Math.round(Math.sqrt(2*dr*dr+4*dg*dg+3*db*db)/3);
+  $("#deltaBig").innerHTML=`Δ ${delta} <small>color difference</small>`;
+  let v;
+  if(delta<4) v="Excellent — these are effectively identical.";
+  else if(delta<10) v="Close. Minor tweaks below will tighten it.";
+  else if(delta<22) v="Noticeable mismatch. Apply the adjustments to the OLD monitor.";
+  else v="Strong mismatch — likely panel aging. Adjustments will help; perfect match may not be reachable via OSD alone.";
+  $("#verdict").textContent=v;
+
+  // OLD monitor reads (tgt). To match new (ref): if old emits MORE of a channel
+  // than new, lower that channel's gain on the old monitor, and vice versa.
+  const chans=[["R","r","r"],["G","g","g"],["B","b","b"]];
+  const grid=$("#adjGrid"); grid.innerHTML="";
+  chans.forEach(([name])=>{
+    const k=name.toLowerCase();
+    const diff=tgt[k]-ref[k]; // old minus new
+    const dir = diff>0 ? "decrease" : diff<0 ? "increase" : "no change";
+    const mag=Math.abs(diff);
+    // map to a 0-100 OSD gain nudge estimate (OSD usually 0-100, default ~50)
+    const nudge=Math.min(100,Math.round(mag*100/255*1.4));
+    const chEl=document.createElement("div");chEl.className="ch "+k;chEl.textContent=name;
+    const barWrap=document.createElement("div");
+    barWrap.innerHTML=`<div class="bar"><i style="${diff>0?'right:50%':'left:50%'};width:${nudge/2}%;background:${diff>0?'var(--bad)':'var(--good)'}"></i></div>`;
+    const val=document.createElement("div");val.className="val";
+    val.textContent = mag===0 ? "OK" : `${dir} ~${nudge}`;
+    grid.appendChild(chEl);grid.appendChild(barWrap);grid.appendChild(val);
+  });
+
+  // brightness note
+  const lumRef=0.299*ref.r+0.587*ref.g+0.114*ref.b;
+  const lumTgt=0.299*tgt.r+0.587*tgt.g+0.114*tgt.b;
+  const lumDiff=Math.round(lumTgt-lumRef);
+  let bn = Math.abs(lumDiff)<4 ? "Brightness matches well."
+    : lumDiff>0 ? `Old monitor is brighter — lower its brightness/contrast a touch (~${Math.min(100,Math.abs(lumDiff))} units of headroom).`
+    : `Old monitor is dimmer — raise its brightness/contrast slightly.`;
+  $("#hint").innerHTML=`How to apply: open the OLD monitor's on-screen menu (OSD) → <b>Color → Custom/User RGB gain</b>. Nudge each channel in the direction shown, re-capture, repeat until Δ drops below ~5. Numbers are relative guidance, not exact OSD ticks — converge in 2–3 passes.<br><br>${bn}`;
+}
+</script>
+</body>
+</html>
